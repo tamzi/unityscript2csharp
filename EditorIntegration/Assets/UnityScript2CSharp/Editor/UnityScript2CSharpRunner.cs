@@ -2,15 +2,20 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using Assets.Editor;
 using UnityEditor;
-using UnityEditor.Compilation;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using Application = UnityEngine.Application;
 using Debug = UnityEngine.Debug;
+
+#if UNITY_2017_3_OR_NEWER        
+
+using System.Linq;
+using UnityEngine.SceneManagement;
+using UnityEditor.Compilation;
+
+#endif
 
 [Serializable]
 public class UnityScript2CSharpRunner : UnityEditor.EditorWindow
@@ -84,7 +89,7 @@ public class UnityScript2CSharpRunner : UnityEditor.EditorWindow
 
         if (TryExtractConverter(assetsFolder, unityInstallPath, out converterPath))
         {
-            RunCoverter(converterPath);
+            RunConverter(converterPath);
         }
     }
 #endif        
@@ -145,7 +150,7 @@ public class UnityScript2CSharpRunner : UnityEditor.EditorWindow
         get { return "UnityScript2CSharp"; }
     }
 
-    private static void RunCoverter(string converterPath)
+    private static void RunConverter(string converterPath)
     {
         var option = EditorUtility.DisplayDialogComplex(
                                             Title, 
@@ -210,16 +215,20 @@ public class UnityScript2CSharpRunner : UnityEditor.EditorWindow
 
     private static void ShowConversionResultsInConsole(int retCode)
     {
-
         var logFilePath = GetLogFileNameForProject();
         if (!File.Exists(logFilePath))
             return;
 
+        const string successMsgPrefix = "UnityScript2CSharp converter finished successfully";
         if (retCode == 0)
-            Debug.Log("UnityScript2CSharp converter finished (You can remove '" + ConverterPackageFolder + "' if you dont plan to run the converter in ths project again).\r\n\r\n" + File.ReadAllText(logFilePath));
+            Debug.Log(successMsgPrefix + " (You can remove '" + ConverterPackageFolder + "' if you dont plan to run the converter in ths project again).\r\n\r\n" + File.ReadAllText(logFilePath));
+        else if (retCode == 1)
+        {
+            Debug.LogWarning(successMsgPrefix + " but your project contains conditional compilation. See log below:\r\n\r\n" + File.ReadAllText(logFilePath));
+            Debug.unityLogger.filterLogType = LogType.Warning;
+        }
         else            
-            Debug.Log("UnityScript2CSharp was not able to convert your project:.\r\n\r\n" + File.ReadAllText(logFilePath));
-
+            Debug.LogError("UnityScript2CSharp was not able to convert your project:.\r\n\r\n" + File.ReadAllText(logFilePath));
 
         var prevFilePath = logFilePath + ".prev";
         if (File.Exists(prevFilePath))
@@ -248,8 +257,9 @@ public class UnityScript2CSharpRunner : UnityEditor.EditorWindow
 
             var referencedAssemblies = CompilationPipeline.GetAssemblies()
                                             .SelectMany(a => a.compiledAssemblyReferences)
-                                            .Where(a => !a.Contains(unityInstallPath) || a.Contains("UnityExtensions"));
-            
+                                            .Where(a => !a.Contains(unityInstallPath) || a.Contains("UnityExtensions"))
+                                            .Distinct(StringComparer.InvariantCultureIgnoreCase);
+
             foreach (var assemblyPath in referencedAssemblies)
             {
                 writer.WriteLine("-r:{0}", assemblyPath);

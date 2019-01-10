@@ -22,6 +22,12 @@ mkdir %UNITYSCRIPT2CSHARP_PROJECT_ROOT%
 REM Build app
 msbuild /p:Configuration=Release
 
+if %ERRORLEVEL% EQU 0 goto BuildSucceeded
+@echo Error while building converter. Error code = %errorlevel%
+goto End
+
+:BuildSucceeded
+
 REM Get current version
 UnityScript2CSharp\bin\Release\UnityScript2CSharp.exe > %temp%\UnityScript2CSharp.version 2>&1
 set /p CONVERTER_OUTPUT=<%temp%\UnityScript2CSharp.version
@@ -62,7 +68,7 @@ goto End
 goto :eof
 
 :CheckExecutable
-   where %1 > NULL 2>&1
+   where %1 > NUL 2>&1
 
    if errorlevel 1 @echo %1 not found. Please, add it to search path.
    if [%ERRORLEVEL%]==[1] Set %~2=%ERRORLEVEL%
